@@ -10,24 +10,24 @@ from file_handling import (get_target_file,
                           )
 
 def proceed_with_ldfu(config_ldfu: Dict[str,str], config_ruleset: Dict[str,str], active_ruleset: str,
-                      queries: List[str], file_str: str, timestamp: str):
+                      queries: List[str], file_str: str, timestamp: str, idm: str):
     script_path  = get_script_path(config_ldfu)
     ruleset = get_ruleset(config_ruleset, active_ruleset)
     target_files = execute_ldfu(script_path, ruleset, file_str=file_str, 
-                                    queries=queries, timestamp=timestamp)
+                                    queries=queries, timestamp=timestamp, idm=idm)
     if len(target_files) == 2: 
-        create_diff(queries[0], timestamp, *target_files)
+        create_diff(queries[0], timestamp, idm, *target_files)
     elif len(target_files) != len(queries): 
         log.error(f'Ldfu could not process SPARQL query. Check terminal output! ({" ,".join(queries)})')
             
 
 def execute_ldfu(script_path: str, ruleset: str, file_str:str,
-                 queries:List[str],  timestamp: str) -> List[str]:
+                 queries:List[str],  timestamp: str, idm: str) -> List[str]:
     
     target_files = []
     for i, q in enumerate(queries):
         if os.path.isfile(q):
-            out = get_target_file(q, ('req', 'sol')[i], timestamp)
+            out = get_target_file(q, ('req', 'sol')[i], timestamp, idm)
             run_ldfu_script(script_path, query=q, target_file=out, ruleset=ruleset, files=file_str)
             target_files.append(out)
     return target_files
@@ -53,8 +53,8 @@ def run_ldfu_script(script: str, query:str, target_file:str, ruleset: str, files
 
 
 
-def create_diff(query: str, ts: str, res: str, sol: str) -> None:
-    target_file = get_target_file(query, 'dif', ts)
+def create_diff(query: str, ts: str, idm, res: str, sol: str) -> None:
+    target_file = get_target_file(query, 'dif', ts, idm)
     a, b = get_file_lines(res), get_file_lines(sol)
     save_file(target_file, get_diff_tsv(a,b))
 

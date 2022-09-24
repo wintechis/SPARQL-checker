@@ -42,18 +42,17 @@ def get_result_str(dct_rst: Dict[str, Any]) -> str:
     x.align = "l"
     return x.get_string()
 
-def get_target_file(query: str, type:str, timestamp: str, ext: str = '.tsv') -> str:
-    return f'{os.path.join(os.getcwd(), "results", os.path.split(query)[1][:-3])}_{timestamp}_{type}{ext}'
+def get_target_file(query: str, type:str, timestamp: str, idm='', ext: str = '.tsv') -> str:
+    return f'{os.path.join(os.getcwd(), "results", os.path.split(query)[1][:-3])}_{timestamp}{f"_{idm}" if idm else ""}_{type}{ext}'
 
-
-def save_and_update_files(local_path: str, files: List[str], overwrite: bool) -> Tuple[str, List[str]]:
+def save_and_update_files(local_path: str, files: List[str], overwrite: bool) -> List[str]:
         # create local store folder(s), if not yet exist(s)
         create_folders(local_path, os.getcwd())
         local_path = os.path.join(local_path)
 
         download_files(files, local_path, overwrite)
         # replace remote files with local files
-        return local_path, get_files(local_path)
+        return get_files(local_path)
 
 def get_files(file_folder: str) -> List[str]:
     # return file directories

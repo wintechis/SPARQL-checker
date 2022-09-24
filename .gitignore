@@ -2,8 +2,17 @@
 bin/
 conf/
 doc/
-examples/
+examples/*
 
+# output /config
+requests/*
+results/*
+solutions/*
+
+files.txt
+idm.txt
+config.ini
+files/
 
 
 # Byte-compiled / optimized / DLL files
