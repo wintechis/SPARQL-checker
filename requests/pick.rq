@@ -1,0 +1,7 @@
+SELECT ?s ?p ?o
+{
+    ?s ?p ?o .
+}
+ORDER BY DESC(?s) ASC(?p)
+OFFSET 5
+LIMIT 1

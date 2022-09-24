@@ -1,0 +1,38 @@
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+SELECT ?me ?semester ?fau_name ?year
+{
+    {
+        ?me ?in ?semester .
+        FILTER(DATATYPE(?semester) = xsd:integer)
+        {
+        #return #me
+        SELECT ?me (COUNT(?me) as ?count) 
+        WHERE {
+            ?me ?p1 ?o1 .
+        }
+        GROUP BY ?me
+        ORDER BY DESC(?count)
+        
+        LIMIT 1
+        }
+    }
+    {
+        ?fau ?name ?fau_name ;
+             ?founded ?year .
+        FILTER(DATATYPE(?fau_name) = rdf:langString || DATATYPE(?fau_name) = xsd:string)
+        FILTER(DATATYPE(?year) = xsd:integer)
+        {
+            #return #fau
+            SELECT ?fau (COUNT(?fau) as ?count2) 
+            WHERE {
+                ?fau ?p2 ?o2 .
+            }
+            GROUP BY ?fau
+            ORDER BY DESC(?count2)
+            OFFSET 2
+            LIMIT 1
+        }
+    }
+}

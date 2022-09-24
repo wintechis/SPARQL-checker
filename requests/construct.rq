@@ -1,0 +1,25 @@
+CONSTRUCT {?o ?p2 ?me .}
+{
+    ?me ?p2 ?o .
+    {
+        SELECT ?me ?p2 (COUNT(?p2) as ?count2)
+        {
+            ?me ?p2 ?o2 .
+            {
+                #return #me
+                SELECT ?me (COUNT(?me) as ?count)
+                WHERE {
+                    ?me ?p1 ?o1 .
+                }
+                GROUP BY ?me
+                ORDER BY DESC(?count)
+                
+                LIMIT 1
+            }
+        }
+        GROUP BY ?p2
+        ORDER BY DESC(?count2)
+        LIMIT 1
+        
+    }
+}

@@ -1,0 +1,19 @@
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?s (DATATYPE(?s) as ?y)
+{
+    ?su ?pr  ?ob
+    {
+    #return #fau
+    SELECT ?su (COUNT(?su) as ?count) 
+    WHERE {
+        ?su ?p ?o .
+    }
+    GROUP BY ?su
+    ORDER BY DESC(?count)
+    OFFSET 2
+    LIMIT 1
+    }
+    FILTER(DATATYPE(?ob) = xsd:integer)
+    BIND (xsd:string(?ob) AS ?s ) .
+}

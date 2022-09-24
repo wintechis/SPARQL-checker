@@ -1,0 +1,19 @@
+ASK
+WHERE {
+    ?s  ?has_abstract  ?abstract .
+    FILTER(CONTAINS(str(?abstract), '.'))
+    BIND(STRLEN(?abstract) as ?len)
+    {
+    #return #thesis
+    SELECT ?s (COUNT(?s) as ?count) 
+    WHERE {
+        ?s ?p ?o .
+    }
+    GROUP BY ?s
+    ORDER BY DESC(?count)
+    OFFSET 1
+    LIMIT 1
+    }
+}
+ORDER BY DESC(?len)
+LIMIT 1
