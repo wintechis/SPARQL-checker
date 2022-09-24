@@ -11,6 +11,7 @@ from ldfu_wrapper import proceed_with_ldfu
 from rdflib_handling import convert_rst_to_dict
 from idm_handling import edit_files_file
 from etc import get_timestamp
+from download import download_sparql_query
 from file_handling import (create_folders,
                            get_file_lines,
                            get_folder_files,
@@ -67,6 +68,14 @@ def run(args: argparse.Namespace, config: configparser.ConfigParser, idms: List[
       
         # change args.query to list of q_req if idm
         for q_req in get_queries(args.query):
+            if args.single:
+                # if overwerite true, delete else skip
+                url     = f"{config['data']['base_path']}{idms[0]}/requests/{os.path.split(q_req)[1]}"
+                q_req  = os.path.join(os.getcwd(), 'requests', idms[0], os.path.split(q_req)[1])
+                create_folders(idms[0], os.path.join(os.getcwd(), 'requests'))
+                download_sparql_query(url, q_req)
+                if not os.path.isfile(q_req): continue
+
             q_sol = get_sol_query(q_req)
             queries = [q_req, q_sol] if args.compare else [q_req]
             sol_file_exists = os.path.isfile(q_sol)

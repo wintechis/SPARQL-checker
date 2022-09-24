@@ -1,8 +1,7 @@
 import os
-from typing import List, Dict, Any, Tuple
-
-import rdflib
+from typing import List, Dict, Any
 from prettytable import PrettyTable
+from download import download_files
 
 def get_file_lines(file: str) -> List[str]:
     # file locations must be separated by new line in text file
@@ -58,20 +57,6 @@ def get_files(file_folder: str) -> List[str]:
     # return file directories
     root, dirs , files = next(os.walk(file_folder))
     return [os.path.join(root, file) for file in files]
-
-def download_files(file_locations: List[str], file_folder: str, overwrite: bool) -> None:
-    for l in file_locations:
-        name = l[l.rfind('/') + 1:]
-        pos_tilde = l.find('~')
-        user = l[pos_tilde + 1: pos_tilde +9]
-        local_file = os.path.join(  os.path.dirname(__file__),
-                                    file_folder, 
-                                    f'{user}_{name}')
-        if not os.path.isfile(local_file) or overwrite:
-            try:
-                rdflib.Graph().parse(l).serialize(local_file)
-            except Exception as e:
-                print(f'Error for "{l}"', e)
 
 def create_folders(path:str, base: str) -> None:
     for dirname in reversed(get_dirs(path, [])):
