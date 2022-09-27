@@ -2,7 +2,7 @@ import os
 import platform
 from subprocess import Popen, PIPE
 import logging as log
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from file_handling import (get_target_file,
                            get_file_lines,
@@ -20,7 +20,6 @@ def proceed_with_ldfu(config_ldfu: Dict[str,str], config_ruleset: Dict[str,str],
     elif len(target_files) != len(queries): 
         log.error(f'Ldfu could not process SPARQL query. Check terminal output! ({" ,".join(queries)})')
             
-
 def execute_ldfu(script_path: str, ruleset: str, file_str:str,
                  queries:List[str],  timestamp: str, idm: str) -> List[str]:
     
@@ -50,15 +49,16 @@ def run_ldfu_script(script: str, query:str, target_file:str, ruleset: str, files
     p = Popen(f'{script} -q {query} "{target_file}"  -p {ruleset} -i {files}', shell=True, stdout=PIPE, cwd=os.getcwd())
     p.communicate()
 
-
-
-
-def create_diff(query: str, ts: str, idm, res: str, sol: str) -> None:
+def create_diff(query: str, ts: str, idm, res: str, sol: str) -> int:
     target_file = get_target_file(query, 'dif', ts, idm)
     a, b = get_file_lines(res), get_file_lines(sol)
-    save_file(target_file, get_diff_tsv(a,b))
+    content, n = get_diff_tsv(a,b)
+    save_file(target_file, content)
+    return n
 
-def get_diff_tsv(one: List[str], other: List[str]) -> str:
+def get_diff_tsv(one: List[str], other: List[str]) -> Tuple[str, int]:
     diff_extra = [f'+:\t{line}' for line in one if line not in other]
     diff_miss = [f'-:\t{line}' for line in other if line not in one]
-    return '\n'.join([one[0], *diff_extra, '\n', *diff_miss])
+    content = '\n'.join([one[0], *diff_extra, '\n', *diff_miss])
+    n = len(diff_extra) + len(diff_miss)
+    return (content, n)

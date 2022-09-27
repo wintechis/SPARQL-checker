@@ -13,8 +13,8 @@ from idm_handling import edit_files_file
 from etc import get_timestamp
 from download import download_sparql_query
 from file_handling import (create_folders,
-                           get_file_lines,
-                           get_folder_files,
+                           get_file_lines, get_files,
+                           get_folder_files, get_pretty_str,
                            get_target_file,
                            read_file,
                            save_and_update_files,
@@ -37,17 +37,37 @@ def main(config: configparser.ConfigParser) -> None:
     f_files = os.path.join(config['data']['file_list'])
     idms = get_file_lines(f_idm)
     ts = get_timestamp()
+    # queries = get_queries(args.query)
     if not args.single:
         run(args, config, idms,f_files, ts)
         return
 
     args.update = True
     args.compare = True
+    lst_queries = sorted([os.path.split(f)[1] for f in get_files(os.path.join(os.getcwd(), 'solutions'))], reverse=True) # add relevant queries 
+    length = len(lst_queries)
+    lst_overall = []
+    row_header = ['IDM', 'PASSED', *lst_queries]
     for idm in idms:
-        run(args, config, [idm], f_files, ts)
-    
+        d_overview = run(args, config, [idm], f_files, ts)
+        row_rst = create_result_row(d_overview, lst_queries)
+        row = [idm, f'{row_rst.count("True")}/{length}', *row_rst]
+        lst_overall.append(row)
+    content = get_pretty_str(row_header, lst_overall, delim='')
+    location = get_target_file('overall.rq', '', ts, ext='.txt')
+    save_file(location, content)     
 
-def run(args: argparse.Namespace, config: configparser.ConfigParser, idms: List[str], f_files: str, ts: str):
+def create_result_row(d_overview: Dict[str, bool], lst_queries: List[str]) -> List[str]:
+    l = []
+    for q in lst_queries:
+        passed = str(d_overview[q])  if q in d_overview.keys() else 'NA'
+        l.append(passed)
+    return l
+            
+        
+
+def run(args: argparse.Namespace, config: configparser.ConfigParser, idms: List[str], f_files: str, ts: str) -> Dict[str, str]:
+        d = {}
         if args.update:
             edit_files_file(idms, f_files, config['data']['base_path'], config['data']['include_idms'], list(config['files'].keys()))
         # load remote file locations from files list into variable files
@@ -65,11 +85,13 @@ def run(args: argparse.Namespace, config: configparser.ConfigParser, idms: List[
         
         # load rdf data
         if not args.ruleset: g = load_rdf_data(files)
-      
+        
+
         # change args.query to list of q_req if idm
-        for q_req in get_queries(args.query):
+        queries = get_queries(args.query)
+        for q_req in queries:
             if args.single:
-                # if overwerite true, delete else skip
+                # if overwrite true, delete else skip
                 url     = f"{config['data']['base_path']}{idms[0]}/requests/{os.path.split(q_req)[1]}"
                 q_req  = os.path.join(os.getcwd(), 'requests', idms[0], os.path.split(q_req)[1])
                 create_folders(idms[0], os.path.join(os.getcwd(), 'requests'))
@@ -77,7 +99,7 @@ def run(args: argparse.Namespace, config: configparser.ConfigParser, idms: List[
                 if not os.path.isfile(q_req): continue
 
             q_sol = get_sol_query(q_req)
-            queries = [q_req, q_sol] if args.compare else [q_req]
+            pair = [q_req, q_sol] if args.compare else [q_req]
             sol_file_exists = os.path.isfile(q_sol)
             if not sol_file_exists and args.compare:
                 log.critical(f'Query file "{q_sol}" does not exist!')
@@ -85,29 +107,34 @@ def run(args: argparse.Namespace, config: configparser.ConfigParser, idms: List[
             if args.ruleset:
                 # only executed when -l, --ldfu
                 proceed_with_ldfu(config['ldfu'], config['rulesets'], args.ruleset,
-                                queries=queries, file_str=' '.join(files), timestamp=ts, idm=idms[0])
-                return
-            proceed_with_rdflib(g, queries, ts, idms[0], sol_file_exists)
+                                queries=pair, file_str=' '.join(files), timestamp=ts, idm=idms[0])
+                # get d    
+                return d
+            n = proceed_with_rdflib(g, pair, ts, idms[0], sol_file_exists)
+            d[os.path.split(q_req)[1]] = (n == 0)
+        return d
 
 
     #TODO add SPARQL comparison from helper tool
-def proceed_with_rdflib(g: rdflib.Graph, q: List[str], ts: str, idm: str, sol_file_exists: bool) -> None:
+def proceed_with_rdflib(g: rdflib.Graph, q: List[str], ts: str, idm: str, sol_file_exists: bool) -> int:
         # q: #0 q_req, #1 q_sol
+        n = 0
         dct_req = execute_sparql(g, q[0])
         save_pretty_file(dct_req, get_target_file(q[0], 'req' , ts, idm, '.txt'))
 
         if len(q) == 2 and sol_file_exists:
             dct_sol = execute_sparql(g, q[1])
             save_pretty_file(dct_sol, get_target_file(q[1], 'sol', ts,idm,  '.txt'))
-            create_diff_file(get_target_file(q[0], 'dif', ts, idm, '.txt'), dct_req, dct_sol)
-            
+            n = create_diff_file(get_target_file(q[0], 'dif', ts, idm, '.txt'), dct_req, dct_sol)
+        return n
 
-def create_diff_file(diff_file: str, dct_req: Dict[str, Any], dct_sol: Dict[str, Any]) -> None:
+def create_diff_file(diff_file: str, dct_req: Dict[str, Any], dct_sol: Dict[str, Any]) -> int:
     dct_plus = compare_results(dct_req, dct_sol, '+')
     dct_minus = compare_results(dct_sol, dct_req, '-')
     save_pretty_file(dct_plus, diff_file)
     save_file(diff_file, '\n\n', mode='a')
     save_pretty_file(dct_minus, diff_file, mode='a')
+    return len(dct_plus['list']) + len(dct_minus['list'])
 
 def execute_sparql(g: rdflib.Graph, q: str) -> Dict[str, Any]:
     rst_req = execute_query(g, read_file(q))
@@ -180,9 +207,13 @@ def execute_query(g: rdflib.Graph, q: str) -> rdflib.query.Result:
         return rdflib.query.Result("ASK")
 
 def compare_results(dct_one: Dict[str, Any], dct_other: Dict[str, Any], sign: str) -> Dict[str, Any]:
-    lst = [f'{sign}\u2312{line}' for line in dct_one['list'] if line not in dct_other['list']]
+    delimiter = '\u2312'
+    lst = [f'{sign}{delimiter}{line}' for line in dct_one['list'] if line not in dct_other['list']]
     header = ['dif']
     header.extend(dct_one['header'])
+    # if isinstance(dct_one['list'], str):
+    #    lst = compare_construct_rst(dct_one['list'], dct_other['list'], sign, delimiter)
+    if dct_one['type'] == 'CONSTRUCT': dct_one['type'] = 'SELECT' # Diff file for CONSTRUCT is same as SELECT
     return {'header': header,
             'list': lst,
             'type': dct_one['type']

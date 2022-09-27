@@ -30,14 +30,17 @@ def save_pretty_file(dct_rst: Dict[str, Any], location: str, mode: str='w'):
 
 def get_result_str(dct_rst: Dict[str, Any]) -> str:
     if dct_rst['type'] == 'ASK':
-        return f'ASK: {dct_rst["list"][0]}'
+        return f'ASK: {dct_rst["list"]}'
     elif dct_rst['type'] == 'CONSTRUCT':
-        return dct_rst['list']
+        return dct_rst['str']
+    return get_pretty_str(dct_rst['header'], rows=dct_rst['list'])
+
+def get_pretty_str(header: List[str], rows: List[str], delim: str='\u2312'):
     x = PrettyTable(header=False)
     x.header=True
-    x.field_names = ['#', *dct_rst['header']]
-    for i, line in enumerate(dct_rst['list'], start=1):
-        x.add_row([i,*line.split('\u2312')])
+    x.field_names = ['#', *header]
+    for i, line in enumerate(rows, start=1):
+        x.add_row([i,*line.split(delim)]) if delim else  x.add_row([i,*line])
     x.align = "l"
     return x.get_string()
 
