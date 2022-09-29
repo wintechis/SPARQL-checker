@@ -1,0 +1,17 @@
+SELECT ?d (COUNT(?d) as ?count)
+WHERE {
+    ?s  ?pe  ?ob .
+    BIND(DATATYPE(?ob) as ?d)
+    {
+    #return #fau
+    SELECT ?s (COUNT(?s) as ?count) 
+    WHERE {
+        ?s ?p ?o .
+    }
+    GROUP BY ?s
+    ORDER BY DESC(?count)
+    OFFSET 2
+    LIMIT 1
+    }
+}
+Group by ?d

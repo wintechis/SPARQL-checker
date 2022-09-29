@@ -56,10 +56,10 @@ def save_and_update_files(local_path: str, files: List[str], overwrite: bool) ->
         # replace remote files with local files
         return get_files(local_path)
 
-def get_files(file_folder: str) -> List[str]:
+def get_files(file_folder: str, ext: str ='') -> List[str]:
     # return file directories
     root, dirs , files = next(os.walk(file_folder))
-    return [os.path.join(root, file) for file in files]
+    return [os.path.join(root, file) for file in files if file.endswith(ext)]
 
 def create_folders(path:str, base: str) -> None:
     for dirname in reversed(get_dirs(path, [])):

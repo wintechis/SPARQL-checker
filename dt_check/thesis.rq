@@ -1,0 +1,17 @@
+SELECT ?d (COUNT(?d) as ?count)
+WHERE {
+    ?s  ?pe  ?ob .
+    BIND(DATATYPE(?ob) as ?d)
+    {
+    #return #thesis
+    SELECT ?s (COUNT(?s) as ?count) 
+    WHERE {
+        ?s ?p ?o .
+    }
+    GROUP BY ?s
+    ORDER BY DESC(?count)
+    OFFSET 1
+    LIMIT 1
+    }
+}
+Group by ?d

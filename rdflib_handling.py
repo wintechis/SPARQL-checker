@@ -1,6 +1,18 @@
 from typing import Tuple, Dict, Any, List
 import rdflib
+import logging as log
 
+
+
+
+
+def execute_query(g: rdflib.Graph, q: str) -> rdflib.query.Result:
+    # move to rdf handling
+    try:
+        return g.query(q)
+    except Exception as e:
+        log.error(e)
+        return rdflib.query.Result("ASK")
 
 def convert_rst_to_dict(rst: rdflib.query.Result) -> Dict[str,Any]:
     d = {'header': 'ASK QUERY',

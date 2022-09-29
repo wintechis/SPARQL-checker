@@ -8,7 +8,9 @@ import rdflib
 
 
 from ldfu_wrapper import proceed_with_ldfu
-from rdflib_handling import convert_rst_to_dict
+from rdflib_handling import (convert_rst_to_dict,
+                             execute_query
+                            )
 from idm_handling import edit_files_file
 from etc import get_timestamp
 from download import download_sparql_query
@@ -21,6 +23,8 @@ from file_handling import (create_folders,
                            save_file,
                            save_pretty_file
                           )
+
+from dt_test import proceed_with_dt_check
 
 def init() -> str:
     # ensure current working directory
@@ -47,12 +51,16 @@ def main(config: configparser.ConfigParser) -> None:
     lst_queries = sorted([os.path.split(f)[1] for f in get_files(os.path.join(os.getcwd(), 'solutions'))], reverse=True) # add relevant queries 
     length = len(lst_queries)
     lst_overall = []
-    row_header = ['IDM', 'PASSED', *lst_queries]
+    row_header = ['IDM', 'PASSED']
     for idm in idms:
         d_overview = run(args, config, [idm], f_files, ts)
+        if args.query.lower() == 'test':  # temp added for type check
+            lst_queries = d_overview.keys() # temp added for type check
         row_rst = create_result_row(d_overview, lst_queries)
-        row = [idm, f'{row_rst.count("True")}/{length}', *row_rst]
+        row = [idm, f'{row_rst.count("True")}/{len(row_rst)}', *row_rst]
         lst_overall.append(row)
+    
+    row_header.extend(d_overview.keys()) if args.query.lower() == 'test'else row_header.extend(lst_queries)
     content = get_pretty_str(row_header, lst_overall, delim='')
     location = get_target_file('overall.rq', '', ts, ext='.txt')
     save_file(location, content)     
@@ -83,10 +91,11 @@ def run(args: argparse.Namespace, config: configparser.ConfigParser, idms: List[
     
         # get request and solution query file paths
         
-        # load rdf data
+        # load rdf data / add if check
         if not args.ruleset: g = load_rdf_data(files)
         
-
+        if args.query.lower() == 'test': 
+            return proceed_with_dt_check(g)
         # change args.query to list of q_req if idm
         queries = get_queries(args.query)
         for q_req in queries:
@@ -106,12 +115,16 @@ def run(args: argparse.Namespace, config: configparser.ConfigParser, idms: List[
                 
             if args.ruleset:
                 # only executed when -l, --ldfu
-                proceed_with_ldfu(config['ldfu'], config['rulesets'], args.ruleset,
+                executed = proceed_with_ldfu(config['ldfu'], config['rulesets'], args.ruleset,
                                 queries=pair, file_str=' '.join(files), timestamp=ts, idm=idms[0])
+                if not executed: break
                 # get d    
                 return d
             n = proceed_with_rdflib(g, pair, ts, idms[0], sol_file_exists)
-            d[os.path.split(q_req)[1]] = (n == 0)
+            d[os.path.split(q_req)[1]] = (n == 0) # d[query name] = True/False -> Passed or not
+        
+        
+        
         return d
 
 
@@ -137,6 +150,7 @@ def create_diff_file(diff_file: str, dct_req: Dict[str, Any], dct_sol: Dict[str,
     return len(dct_plus['list']) + len(dct_minus['list'])
 
 def execute_sparql(g: rdflib.Graph, q: str) -> Dict[str, Any]:
+    # move to rdf handling
     rst_req = execute_query(g, read_file(q))
     dct_req = convert_rst_to_dict(rst_req)
     return dct_req
@@ -159,13 +173,15 @@ def get_args() -> argparse.Namespace:
     # return query path and applied ruleset
     parser = argparse.ArgumentParser(add_help=True)
     # positional arguments
-    parser.add_argument("query", help='SPARQL file in folder "requests" to be executed. "all" executes entire folder.')
+    parser.add_argument("query", help='SPARQL file in folder "requests" to be executed. "all" executes entire folder. "test" starts datatype check for RDF documents.')
     # optional arguments
     parser.add_argument("-l", "--ldfu", dest='ruleset',choices=['all', 'owl', 'rdf', 'rdfs'], help="Select 'all', 'owl', 'rdf', 'rdfs'.")
     parser.add_argument("-u", "--update", dest='update', action="store_true", help="Create resource iris in files file from Idm file")
     parser.add_argument("-c", "--compare", dest='compare', action="store_true", help='SPARQL files in folder "requests" and "solutions" are executed.')
     parser.add_argument("-s", "--single-eval", dest='single', action="store_true", help='Compares results and solutions of single idm and creates an overview file.')
-    
+    parser.add_argument("-i", "--idm", dest='single', help='Single idm to be evaluated')
+
+
     args = parser.parse_args()
     return args
 
@@ -199,12 +215,7 @@ def load_rdf_data(path: Union[str, List[str]]) -> rdflib.Graph():
     return g 
      
 
-def execute_query(g: rdflib.Graph, q: str) -> rdflib.query.Result:
-    try:
-        return g.query(q)
-    except Exception as e:
-        log.error(e)
-        return rdflib.query.Result("ASK")
+
 
 def compare_results(dct_one: Dict[str, Any], dct_other: Dict[str, Any], sign: str) -> Dict[str, Any]:
     delimiter = '\u2312'

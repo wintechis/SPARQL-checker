@@ -1,5 +1,4 @@
 ## This is a valid SPARQL query for solving 1.2.1 labels
-
 SELECT ?label
 WHERE {
     ?s ?p ?label .
