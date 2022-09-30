@@ -8,6 +8,7 @@ The config.ini contains settings to reduce the length the script command. It con
 
 ### [general]
 * overwrite         -> if "yes", existing local files are replaced with current web resource. If "no", current web resource is ignored and local file will be used.
+* clear_results     -> if "yes", all files are deleted from folder "results"
 * local_store_path  -> name of folder where files will be locally stored. If no name is given, web resources are not locally stored.
 * log_file          -> name of log file
   

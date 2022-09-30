@@ -22,10 +22,4 @@ class DtSolutions:
 
 
 if __name__ == "__main__":
-    pass
-    # expected_tests = list(get_dt_solutions().keys())
-    # available_tests = get_dt_dct_tests.keys()
-    # diff = set(expected_tests).difference(set(available_tests))
-    # print(f'Current selected tests: {", ".join(expected_tests)}.')
-    # if len(diff):
-    #     print(f'The following queries are missing: {" ,".join(diff)}.')
+    print('Check datatypes with "python checker.py test [-s]"')

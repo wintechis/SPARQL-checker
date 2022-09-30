@@ -2,37 +2,30 @@ import configparser
 import argparse
 import os
 import logging as log
-from typing import Any,  List, Union, Dict
+from typing import  List, Dict
 
-import rdflib
+import sys
+sys.path.append('py')
 
-
-from ldfu_wrapper import proceed_with_ldfu
-from rdflib_handling import (convert_rst_to_dict,
-                             execute_query
+from py.ldfu_wrapper import proceed_with_ldfu
+from py.rdflib_handling import (load_rdf_data,
+                                proceed_with_rdflib
+                                )
+from py.etc import (clear_folder, get_timestamp,
+                    get_target_file,
+                    download_sparql_query
+                    )
+from py.dt_test import proceed_with_dt_check
+from py.file_handling import (  create_folders,
+                                get_file_lines,
+                                get_queries,
+                                get_sol_query,
+                                save_and_update_files,
+                                create_result_row,
+                                create_overview_file,
+                                edit_files_file
                             )
-from idm_handling import edit_files_file
-from etc import get_timestamp
-from download import download_sparql_query
-from file_handling import (create_folders,
-                           get_file_lines, get_files,
-                           get_folder_files, get_pretty_str,
-                           get_target_file,
-                           read_file,
-                           save_and_update_files,
-                           save_file,
-                           save_pretty_file
-                          )
 
-from dt_test import proceed_with_dt_check
-
-def init() -> str:
-    # ensure current working directory
-    os.chdir(os.path.dirname(__file__))
-    # load config file 
-    config = load_config('config.ini')
-    # set logging configurations
-    return config,  configure_log(config['general']['log_file'])
 
 def main(config: configparser.ConfigParser) -> None:
     # get parameters from console command
@@ -40,62 +33,63 @@ def main(config: configparser.ConfigParser) -> None:
     f_idm = os.path.join(os.getcwd(), config['data']['idm_list'])
     f_files = os.path.join(config['data']['file_list'])
     idms = get_file_lines(f_idm)
+
+    if args.idm:
+        idms = [args.idm]
+        args.single = True
+
+    ALL_ONCE = not args.single
+
     ts = get_timestamp()
-    # queries = get_queries(args.query)
-    if not args.single:
-        run(args, config, idms,f_files, ts)
-        return
-
-    args.update = True
-    args.compare = True
-    lst_queries = sorted([os.path.split(f)[1] for f in get_files(os.path.join(os.getcwd(), 'solutions'))], reverse=True) # add relevant queries 
-    length = len(lst_queries)
-    lst_overall = []
-    row_header = ['IDM', 'PASSED']
-    for idm in idms:
-        d_overview = run(args, config, [idm], f_files, ts)
-        if args.query.lower() == 'test':  # temp added for type check
-            lst_queries = d_overview.keys() # temp added for type check
-        row_rst = create_result_row(d_overview, lst_queries)
-        row = [idm, f'{row_rst.count("True")}/{len(row_rst)}', *row_rst]
-        lst_overall.append(row)
+    is_dt_test = args.query.lower() == 'test'
     
-    row_header.extend(d_overview.keys()) if args.query.lower() == 'test'else row_header.extend(lst_queries)
-    content = get_pretty_str(row_header, lst_overall, delim='')
-    location = get_target_file('overall.rq', '', ts, ext='.txt')
-    save_file(location, content)     
+    # if not args.single:
+    #     run(args, config, idms, f_files, ts)
+    #     return
 
-def create_result_row(d_overview: Dict[str, bool], lst_queries: List[str]) -> List[str]:
-    l = []
-    for q in lst_queries:
-        passed = str(d_overview[q])  if q in d_overview.keys() else 'NA'
-        l.append(passed)
-    return l
-            
-        
+    #args.update = True
+    #args.compare = True
+
+    # add relevant queries 
+    if args.query.lower() == 'all':
+        lst_sol_queries = sorted(os.listdir(os.path.join(os.getcwd(), 'solutions')) , reverse=True)
+    else:
+        lst_sol_queries = [f'{os.path.splitext(args.query)[0]}.rq']
+    
+    lst_overall = []
+    for idm in idms:
+        # create idm-only files and return overview dictionary
+        d_overview = run(args, config, idms if ALL_ONCE else [idm], f_files, ts)
+        # change column fields for overview, if datatype test
+        if is_dt_test: lst_sol_queries = d_overview.keys()
+        # return list where indices represent a solution query
+        row_rst = create_result_row(d_overview, lst_sol_queries)
+        # convert bool values to description in list
+        row = ['ALL' if ALL_ONCE else idm, f'{row_rst.count("PASSED")}/{len(row_rst)}', *row_rst]
+        lst_overall.append(row)
+        if ALL_ONCE: break
+    if args.compare:
+        create_overview_file(lst_sol_queries, lst_overall, ts)
 
 def run(args: argparse.Namespace, config: configparser.ConfigParser, idms: List[str], f_files: str, ts: str) -> Dict[str, str]:
         d = {}
         if args.update:
+            # Update files.txt
             edit_files_file(idms, f_files, config['data']['base_path'], config['data']['include_idms'], list(config['files'].keys()))
         # load remote file locations from files list into variable files
         files = get_file_lines(f_files) # all file iris
-        if not args.single: idms = ['']
+        if not args.single: idms = ['all']
         # download files locally
-        local_path = config['general']['local_store_path'] if not args.single else os.path.join(config['general']['local_store_path'], idms[0])
+        local_path = os.path.join(config['general']['local_store_path'], idms[0])
         if local_path !=idms[0]:
             files = save_and_update_files(local_path, files, config['general'].getboolean('overwrite'))
-        #ldfu only 
-        #TODO add check if ldfu is installed
-
-    
-        # get request and solution query file paths
-        
+      
         # load rdf data / add if check
         if not args.ruleset: g = load_rdf_data(files)
         
-        if args.query.lower() == 'test': 
-            return proceed_with_dt_check(g)
+        if args.query.lower() == 'test':
+            target_file = get_target_file('dt', '', ts, idms[0], ext='.txt')
+            return proceed_with_dt_check(g, target_file, idms[0])
         # change args.query to list of q_req if idm
         queries = get_queries(args.query)
         for q_req in queries:
@@ -105,13 +99,14 @@ def run(args: argparse.Namespace, config: configparser.ConfigParser, idms: List[
                 q_req  = os.path.join(os.getcwd(), 'requests', idms[0], os.path.split(q_req)[1])
                 create_folders(idms[0], os.path.join(os.getcwd(), 'requests'))
                 download_sparql_query(url, q_req)
-                if not os.path.isfile(q_req): continue
-
+                #if not os.path.isfile(q_req): continue
+            if not os.path.isfile(q_req): 
+                continue
             q_sol = get_sol_query(q_req)
             pair = [q_req, q_sol] if args.compare else [q_req]
             sol_file_exists = os.path.isfile(q_sol)
             if not sol_file_exists and args.compare:
-                log.critical(f'Query file "{q_sol}" does not exist!')
+                log.warning(f'Query file "{q_sol}" does not exist!')
                 
             if args.ruleset:
                 # only executed when -l, --ldfu
@@ -122,38 +117,20 @@ def run(args: argparse.Namespace, config: configparser.ConfigParser, idms: List[
                 return d
             n = proceed_with_rdflib(g, pair, ts, idms[0], sol_file_exists)
             d[os.path.split(q_req)[1]] = (n == 0) # d[query name] = True/False -> Passed or not
-        
-        
-        
         return d
 
+def init() -> str:
+    # ensure current working directory
+    os.chdir(os.path.dirname(__file__))
+    # load config file 
+    config = load_config('config.ini')
+    
+    if config['general'].getboolean('clear_results'):
+        clear_folder(os.path.join(os.getcwd(), 'results'))
+    # set logging configurations
+    return config,  configure_log(config['general']['log_file'])
 
-    #TODO add SPARQL comparison from helper tool
-def proceed_with_rdflib(g: rdflib.Graph, q: List[str], ts: str, idm: str, sol_file_exists: bool) -> int:
-        # q: #0 q_req, #1 q_sol
-        n = 0
-        dct_req = execute_sparql(g, q[0])
-        save_pretty_file(dct_req, get_target_file(q[0], 'req' , ts, idm, '.txt'))
-
-        if len(q) == 2 and sol_file_exists:
-            dct_sol = execute_sparql(g, q[1])
-            save_pretty_file(dct_sol, get_target_file(q[1], 'sol', ts,idm,  '.txt'))
-            n = create_diff_file(get_target_file(q[0], 'dif', ts, idm, '.txt'), dct_req, dct_sol)
-        return n
-
-def create_diff_file(diff_file: str, dct_req: Dict[str, Any], dct_sol: Dict[str, Any]) -> int:
-    dct_plus = compare_results(dct_req, dct_sol, '+')
-    dct_minus = compare_results(dct_sol, dct_req, '-')
-    save_pretty_file(dct_plus, diff_file)
-    save_file(diff_file, '\n\n', mode='a')
-    save_pretty_file(dct_minus, diff_file, mode='a')
-    return len(dct_plus['list']) + len(dct_minus['list'])
-
-def execute_sparql(g: rdflib.Graph, q: str) -> Dict[str, Any]:
-    # move to rdf handling
-    rst_req = execute_query(g, read_file(q))
-    dct_req = convert_rst_to_dict(rst_req)
-    return dct_req
+    # str(d_overview[q])
 
 def load_config(config_file: str) -> configparser.ConfigParser:
     config = configparser.ConfigParser(allow_no_value=True, interpolation=configparser.ExtendedInterpolation())
@@ -179,56 +156,11 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("-u", "--update", dest='update', action="store_true", help="Create resource iris in files file from Idm file")
     parser.add_argument("-c", "--compare", dest='compare', action="store_true", help='SPARQL files in folder "requests" and "solutions" are executed.')
     parser.add_argument("-s", "--single-eval", dest='single', action="store_true", help='Compares results and solutions of single idm and creates an overview file.')
-    parser.add_argument("-i", "--idm", dest='single', help='Single idm to be evaluated')
-
+    parser.add_argument("-i", "--idm", dest='idm', help='Single idm to be evaluated (independant of idm file)')
 
     args = parser.parse_args()
     return args
 
-def get_queries(query: str, idm: str='') -> List[str]:
-    #TODO move check to the beginning
-    create_folders('requests', os.getcwd()) 
-    create_folders('solutions', os.getcwd())
-    f_req = os.path.join(os.getcwd(), 'requests')
-    if idm: f_req = os.path.join(f_req, idm)
-
-    if query == 'all':
-        return get_folder_files(f_req)
-   
-    if not query.endswith('.rq'): query = f'{query}.rq'
-    return [os.path.join(f_req, query)]
-
-def get_sol_query(q: str) -> str:
-    head, tail = os.path.split(q)
-    return os.path.join(os.getcwd(), 'solutions', tail)
-
-
-# -----------------
-def load_rdf_data(path: Union[str, List[str]]) -> rdflib.Graph():
-    g = rdflib.Graph()
-    if isinstance(path, str): path = [path]
-    for p in path:
-        try:
-            g.parse(source=p)
-        except Exception as e:
-            log.error(e)
-    return g 
-     
-
-
-
-def compare_results(dct_one: Dict[str, Any], dct_other: Dict[str, Any], sign: str) -> Dict[str, Any]:
-    delimiter = '\u2312'
-    lst = [f'{sign}{delimiter}{line}' for line in dct_one['list'] if line not in dct_other['list']]
-    header = ['dif']
-    header.extend(dct_one['header'])
-    # if isinstance(dct_one['list'], str):
-    #    lst = compare_construct_rst(dct_one['list'], dct_other['list'], sign, delimiter)
-    if dct_one['type'] == 'CONSTRUCT': dct_one['type'] = 'SELECT' # Diff file for CONSTRUCT is same as SELECT
-    return {'header': header,
-            'list': lst,
-            'type': dct_one['type']
-        }
 
 if __name__ == '__main__':
     config, log_file = init()

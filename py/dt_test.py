@@ -1,7 +1,7 @@
 import logging as log
 from typing import Dict, List, Tuple
 from file_handling import get_pretty_str, save_file
-from rdflib_handling import execute_query
+from rdflib_handling import execute_query, reduce_dt_str
 # XSD Schema replacement beachten, um ausgabe zu verkürzen
 import os
 import rdflib
@@ -15,27 +15,24 @@ from file_handling import get_files, read_file
 def create_full_dt_comp(location: str, idm: str , g: rdflib.Graph, dct_tests: Dict[str, Tuple[str, Dict[str,int]]]) -> None:
     # executed to check a single student in complete manner (columns: dt occurrences, rows: datatypes)
     header = ['dt', 'req', 'sol', 'dif']
-    # TODO full comparison
-    # rows_req, rows_sol, rows_dif = [], [], []
-    # for name, (query, dct_sol) in dct_tests.items():
-    #     dct_req= create_dct_dt(execute_query(g, query))
-    #     rows_req.append([])
+    dist = '\n'*2
+    content = f'IDM: {idm}'
+    for name, (query, dct_sol) in dct_tests.items():
+        dct_req= create_dct_dt(execute_query(g, query))
+        dct_diff = get_diff_dct(dct_sol, dct_req)
+        rows = []
+        for k in dct_diff.keys():
+           rows.append([reduce_dt_str(k), dct_req.get(k, 0), dct_sol.get(k, 0), dct_diff[k]])
+        content += f'{dist}Datatype Check: {name}\n{get_pretty_str(header, rows, delim="")}'
+    save_file(location, content)
+
         
-
-    # for k in sorted(dct_diff.keys()):
-    #     rows.append([k, dct_req.get(k, 0), dct_sol.get(k, 0)], dct_diff[k])
-        
-    # content = get_pretty_str(header, rows=rows, delim='')
-    # save_file(location, content)
-
-
-
-
 def create_dt_row(g: rdflib.Graph, dct_tests: Dict[str, Tuple[str, Dict[str,int]]]) -> Dict[str, bool]:
     d = {}
     for name, (query, dct_sol) in dct_tests.items():
         dct_req= create_dct_dt(execute_query(g, query))
         d[name] = are_same_dcts(dct_sol, dct_req)
+    #create_full_dt_comp('', '', g, dct_tests)
     return d
 
 
@@ -84,9 +81,10 @@ def get_dt_dct_tests(all_tests: Dict[str, Dict[rdflib.URIRef, int]], dct_sols = 
     return d
 
 # idm: str , g: rdflib.Graph, dct_tests: Dict[str, Tuple[str, Dict[str,int]]]) -> List[str]
-def proceed_with_dt_check(g: rdflib.Graph) -> List[str]:
+def proceed_with_dt_check(g: rdflib.Graph, target_file: str, idm: str) -> List[str]:
     avail_tests, dct_sols = get_available_dt_query_files(), get_dt_solutions()
     dct_tests = get_dt_dct_tests(avail_tests, dct_sols)
+    create_full_dt_comp(target_file, idm, g, dct_tests) #add idm, add location
     return create_dt_row(g, dct_tests)
     #if not are_test_queries_complete(list(dct_sols.keys()), list(dct_tests.keys())):
     #    print('return or stop, lets see')

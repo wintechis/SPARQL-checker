@@ -5,10 +5,11 @@ from subprocess import Popen, PIPE
 import logging as log
 from typing import Dict, List, Tuple
 
-from file_handling import (get_target_file,
-                           get_file_lines,
+from etc import get_target_file
+from file_handling import (get_file_lines,
                            save_file
                           )
+        
 
 def proceed_with_ldfu(config_ldfu: Dict[str,str], config_ruleset: Dict[str,str], active_ruleset: str,
                       queries: List[str], file_str: str, timestamp: str, idm: str) -> bool:

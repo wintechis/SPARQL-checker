@@ -88,5 +88,5 @@ optional arguments:
 |-s, --single-eval | Files from each student ID are evaluted separately and an overview file is generated at the end. -u and -c flag are set automatically. |
 |-l, --ldfu        | Execution with ldfu with one of the stated rulesets {all,owl,rdf,rdfs}. Results are saved in .tsv format.
 
-Also have a look at possible [configurations](config.md).
+Also have a look at possible [configurations](md/config.md).
 
