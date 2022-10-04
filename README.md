@@ -8,7 +8,7 @@ The tool provides the following features:
 Additional features for lecturers:
 * Download online-hosted files of students and save them as proof of submission
 * Compare students' SPARQL queries with solution queries and create overview file
-* Evaluate students' RDF documents based on XSD datatypes and create overview file (TODO)   
+* Evaluate students' RDF documents based on XSD datatypes and create overview file  
 
 
 # Installation
@@ -43,6 +43,7 @@ ldfu.bat -q SPARQL_FILE OUTPUT_FILE -p RULESET -i RDF_FILE_1 RDF_FILE_2 ...
 * solutions/    -> folder to store SPARQL queries to compare with
 * results/      -> folder where all result files are saved
 * rulesets/     -> folder to save entailment rulesets for ldfu
+* dt_check/     -> folder contains datatype queries and solution dictionaries
 
 
 Additional standard configuration (can be changed in config.ini):
@@ -55,6 +56,9 @@ The remaining files can be ignored for users.
 
 
 # How to Use
+
+## Scenarios
+Have a look at the considered [scenarios](md/Scenarios.md) and the appropriate commands.
 
 ## Command overview
 Use the help parameter to see available execution options.
@@ -70,12 +74,17 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
+
   -l {all,owl,rdf,rdfs}, --ldfu {all,owl,rdf,rdfs}
                         Select 'all', 'owl', 'rdf', 'rdfs'.
+
   -u, --update          Create resource iris in files file from Idm file
+
   -c, --compare         SPARQL files in folder "requests" and "solutions" are executed.
+
   -s, --single-eval     Compares results and solutions of single idm and creates an overview file.
 
+  -i IDM, --idm IDM     Single idm to be evaluated (independant of idm file)   
 
 ## Positional Arguments
 "query" is the only positional argument and must be the name of a query file in folder "requests". Note that the file extension of a SPARQL query is ".rq" which can be omitted. If there is a file named "query.rq", you can just write "query". If you want to execute all SPARQL queries in folder "requests", type the value "all" instead of a query name. This also means that you cannot name a SPARQL file "all.rq".
@@ -87,6 +96,7 @@ optional arguments:
 |-c, --compare     | Three result files are generated: result of query in requests (req), result from query in solutions with the same query name (sol) and file containing the differences of both results (dif). If there is no solution query, sol and dif file are not created. | 
 |-s, --single-eval | Files from each student ID are evaluted separately and an overview file is generated at the end. -u and -c flag are set automatically. |
 |-l, --ldfu        | Execution with ldfu with one of the stated rulesets {all,owl,rdf,rdfs}. Results are saved in .tsv format.
+|-i, --idm         | Single idm is considered
 
 Also have a look at possible [configurations](md/config.md).
 

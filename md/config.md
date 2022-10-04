@@ -11,6 +11,7 @@ The config.ini contains settings to reduce the length the script command. It con
 * clear_results     -> if "yes", all files are deleted from folder "results"
 * local_store_path  -> name of folder where files will be locally stored. If no name is given, web resources are not locally stored.
 * log_file          -> name of log file
+* hande_errors      -> if "yes", log file records errors. If "no", errors are raised.
   
 ### [data]
 base_path           -> base url (e.g. http://www.example.org/)

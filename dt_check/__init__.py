@@ -1,6 +1,14 @@
 from rdflib import RDF, XSD
 
 class DtSolutions:
+    """This class contains the expected results of SPARQL queries asking for
+    datatype objects. Dictionary names must be the same as the filenames containing
+    the SPARQL queries. For example, the query file "me.rq" is compared with the result
+    from dictionary "me".
+    The keys of the dictionaries must be rdflib URIRef. By using the namespaces, spelling mistakes
+    can be prevented.
+    """
+
     # Note: rdflib Namespace Variables are of type URIRef and must be converted to str
     me = {
         XSD.string:     2   ,

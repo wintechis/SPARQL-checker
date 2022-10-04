@@ -1,12 +1,14 @@
-import configparser
 import argparse
+from genericpath import isfile
 import os
 import logging as log
-from typing import  List, Dict
+from typing import  List, Dict, Tuple
 
 import sys
 sys.path.append('py')
 
+from py.config import Config
+from py.logger import Logger
 from py.ldfu_wrapper import proceed_with_ldfu
 from py.rdflib_handling import (load_rdf_data,
                                 proceed_with_rdflib
@@ -27,12 +29,13 @@ from py.file_handling import (  create_folders,
                             )
 
 
-def main(config: configparser.ConfigParser) -> None:
-    # get parameters from console command
-    args = get_args()
-    f_idm = os.path.join(os.getcwd(), config['data']['idm_list'])
-    f_files = os.path.join(config['data']['file_list'])
-    idms = get_file_lines(f_idm)
+def main(config: Config, logger: Logger) -> None:
+    """main function running idm loop
+    """
+    args    = get_args()
+    f_idm   = config.idms_file 
+    f_files = config.files_file 
+    idms    = get_file_lines(f_idm)
 
     if args.idm:
         idms = [args.idm]
@@ -43,14 +46,6 @@ def main(config: configparser.ConfigParser) -> None:
     ts = get_timestamp()
     is_dt_test = args.query.lower() == 'test'
     
-    # if not args.single:
-    #     run(args, config, idms, f_files, ts)
-    #     return
-
-    #args.update = True
-    #args.compare = True
-
-    # add relevant queries 
     if args.query.lower() == 'all':
         lst_sol_queries = sorted(os.listdir(os.path.join(os.getcwd(), 'solutions')) , reverse=True)
     else:
@@ -59,7 +54,7 @@ def main(config: configparser.ConfigParser) -> None:
     lst_overall = []
     for idm in idms:
         # create idm-only files and return overview dictionary
-        d_overview = run(args, config, idms if ALL_ONCE else [idm], f_files, ts)
+        d_overview = run(args, config, idms if ALL_ONCE else [idm], f_files, ts, logger)
         # change column fields for overview, if datatype test
         if is_dt_test: lst_sol_queries = d_overview.keys()
         # return list where indices represent a solution query
@@ -71,82 +66,75 @@ def main(config: configparser.ConfigParser) -> None:
     if args.compare:
         create_overview_file(lst_sol_queries, lst_overall, ts)
 
-def run(args: argparse.Namespace, config: configparser.ConfigParser, idms: List[str], f_files: str, ts: str) -> Dict[str, str]:
+
+def run(args: argparse.Namespace, config: Config, idms: List[str], f_files: str, ts: str, logger: Logger) -> Dict[str, str]:
+        """execution sequence for each idm. Only when -s flag is not set, all idms are passed.
+        """
         d = {}
         if args.update:
             # Update files.txt
-            edit_files_file(idms, f_files, config['data']['base_path'], config['data']['include_idms'], list(config['files'].keys()))
+            edit_files_file(idms, f_files, config.remote_base_url, config.include_idms, config.filenames)
         # load remote file locations from files list into variable files
         files = get_file_lines(f_files) # all file iris
-        if not args.single: idms = ['all']
+        cur_idm = idms[0] if args.single else ['all']
         # download files locally
-        local_path = os.path.join(config['general']['local_store_path'], idms[0])
-        if local_path !=idms[0]:
-            files = save_and_update_files(local_path, files, config['general'].getboolean('overwrite'))
+        local_path = os.path.join(config.local_store_path, cur_idm)
+        if local_path !=cur_idm:
+            files, ignored_files = save_and_update_files(local_path, files, config.overwrite, logger)
+            for f in ignored_files:
+                logger.log_msg(Exception, f'"{f}" is a local file, which is not included in the files list.', log.INFO)
       
         # load rdf data / add if check
         if not args.ruleset: g = load_rdf_data(files)
         
         if args.query.lower() == 'test':
-            target_file = get_target_file('dt', '', ts, idms[0], ext='.txt')
-            return proceed_with_dt_check(g, target_file, idms[0])
+            target_file = get_target_file('dt', '', ts, cur_idm, ext='.txt')
+            return proceed_with_dt_check(g, target_file, cur_idm, logger)
         # change args.query to list of q_req if idm
         queries = get_queries(args.query)
         for q_req in queries:
             if args.single:
-                # if overwrite true, delete else skip
-                url     = f"{config['data']['base_path']}{idms[0]}/requests/{os.path.split(q_req)[1]}"
-                q_req  = os.path.join(os.getcwd(), 'requests', idms[0], os.path.split(q_req)[1])
-                create_folders(idms[0], os.path.join(os.getcwd(), 'requests'))
-                download_sparql_query(url, q_req)
-                #if not os.path.isfile(q_req): continue
+                url     = config.get_remote_query_url(cur_idm, os.path.split(q_req)[1])
+                q_req  =  config.get_local_query_path(cur_idm, os.path.split(q_req)[1])
+                create_folders(cur_idm, os.path.join(os.getcwd(), 'requests'))
+                if not (os.path.isfile(q_req) and not config.overwrite):
+                    download_sparql_query(url, q_req, logger)
             if not os.path.isfile(q_req): 
                 continue
             q_sol = get_sol_query(q_req)
             pair = [q_req, q_sol] if args.compare else [q_req]
             sol_file_exists = os.path.isfile(q_sol)
             if not sol_file_exists and args.compare:
-                log.warning(f'Query file "{q_sol}" does not exist!')
+                logger.log_msg(FileNotFoundError, f'Query file "{q_sol}" does not exist!', log.WARNING)
                 
             if args.ruleset:
                 # only executed when -l, --ldfu
-                executed = proceed_with_ldfu(config['ldfu'], config['rulesets'], args.ruleset,
-                                queries=pair, file_str=' '.join(files), timestamp=ts, idm=idms[0])
+                executed = proceed_with_ldfu(config.ldfu_path, config.ldfu_rulesets, args.ruleset,
+                                queries=pair, file_str=' '.join(files), timestamp=ts, idm=idms[0], logger=logger)
                 if not executed: break
                 # get d    
                 return d
-            n = proceed_with_rdflib(g, pair, ts, idms[0], sol_file_exists)
+            n = proceed_with_rdflib(g, pair, ts, idms[0], sol_file_exists, logger)
             d[os.path.split(q_req)[1]] = (n == 0) # d[query name] = True/False -> Passed or not
         return d
 
-def init() -> str:
+def init() -> Tuple[Config, Logger]:
+    """initalizes current directory, configuration and logger
+    """
     # ensure current working directory
     os.chdir(os.path.dirname(__file__))
     # load config file 
-    config = load_config('config.ini')
-    
-    if config['general'].getboolean('clear_results'):
+    config  = Config(os.getcwd(), 'config.ini')
+
+    if config.clear_results:
         clear_folder(os.path.join(os.getcwd(), 'results'))
     # set logging configurations
-    return config,  configure_log(config['general']['log_file'])
-
-    # str(d_overview[q])
-
-def load_config(config_file: str) -> configparser.ConfigParser:
-    config = configparser.ConfigParser(allow_no_value=True, interpolation=configparser.ExtendedInterpolation())
-    config.read(config_file)
-    return config
-
-def configure_log(file: str) -> str:
-    log_file = os.path.join(os.getcwd(), file)
-    log.basicConfig(filename=log_file,
-                        filemode='a',
-                        level=log.ERROR,
-                        format='%(asctime)s : %(levelname)8s : %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S')
-    return log_file
+    logger = Logger(os.path.join(os.getcwd(), config.logfile), config.handle_errors)
+    return config,  logger #configure_log(config.logfile)
 
 def get_args() -> argparse.Namespace:
+    """set and return commandline arguments
+    """
     # return query path and applied ruleset
     parser = argparse.ArgumentParser(add_help=True)
     # positional arguments
@@ -161,13 +149,12 @@ def get_args() -> argparse.Namespace:
     args = parser.parse_args()
     return args
 
-
 if __name__ == '__main__':
-    config, log_file = init()
-    n = get_file_lines(log_file)
-    main(config)
+    config, logger = init()
+    main(config, logger)
 
-    if n == get_file_lines(log_file):
+    if logger.compare_lines():
         print('Program finished.')
     else:
+        # New log line(s) was/were added
         print('Program raised error(s). Please check the log file for more information.')
