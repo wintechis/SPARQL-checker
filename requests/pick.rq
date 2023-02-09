@@ -1,5 +1,5 @@
 SELECT ?s ?p ?o
-{
+WHERE {
     ?s ?p ?o .
 }
 ORDER BY DESC(?s) ASC(?p)

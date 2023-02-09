@@ -71,6 +71,11 @@ python checker.py QUERY -scl RULESET
 RULESET must be the name of the entailment file in folder "RULESETS".
 Ldfu creates tsv files as result.
 
+### Troubleshooting Ldfu
+* ldfu requires key terms in uppercase (e.g. Select -> SELECT)
+* ldfu requires the optional WHERE term ( {?s ?p ?o.} -> WHERE{?s ?p ?o.})
+* ldfu does not support most of special SPARQL operations, e.g., ORDER is not supported. Try to execute a plain SPARQL query before testing more complex queries.
+
 ## Check SPARQL queries for idm-specific RDF documents with entailment rules.
 As above, but with the update flag.
 ```shell

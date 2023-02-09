@@ -12,6 +12,11 @@ def download_files(file_locations: List[str], file_folder: str, overwrite: bool,
     """
     filenames = []
     for l in file_locations:
+        if os.path.isfile(l):
+            # if already local file
+            filenames.append(l)
+            continue
+
         name = l[l.rfind('/') + 1:]
         pos_tilde = l.find('~')
         user = l[pos_tilde + 1: pos_tilde +9]
@@ -22,7 +27,7 @@ def download_files(file_locations: List[str], file_folder: str, overwrite: bool,
             try:
                 rdflib.Graph().parse(l).serialize(local_file)
             except Exception as e:
-                logger.log_msg(e, f'Web resource "{l}" could not be saved at path "{local_file}"!' , log.Warning)
+                logger.log_msg(e, f'Web resource "{l}" could not be saved at path "{local_file}"!' , log.WARNING)
                 #log.warning(f'Web resource "{l}" could not be saved at path "{local_file}"!')
         if os.path.isfile(local_file):
             filenames.append(local_file)

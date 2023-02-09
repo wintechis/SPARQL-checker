@@ -64,6 +64,7 @@ def main(config: Config, logger: Logger) -> None:
         lst_overall.append(row)
         if ALL_ONCE: break
     if args.compare:
+        # -c argument
         create_overview_file(lst_sol_queries, lst_overall, ts)
 
 
@@ -72,11 +73,11 @@ def run(args: argparse.Namespace, config: Config, idms: List[str], f_files: str,
         """
         d = {}
         if args.update:
-            # Update files.txt
+            # Update files.txt with -u argument
             edit_files_file(idms, f_files, config.remote_base_url, config.include_idms, config.filenames)
         # load remote file locations from files list into variable files
         files = get_file_lines(f_files) # all file iris
-        cur_idm = idms[0] if args.single else ['all']
+        cur_idm = idms[0] if args.single else 'all' # ['all']
         # download files locally
         local_path = os.path.join(config.local_store_path, cur_idm)
         if local_path !=cur_idm:
